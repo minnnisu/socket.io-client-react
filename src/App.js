@@ -1,18 +1,13 @@
 import { useEffect, useState } from "react";
 import io from "socket.io-client"; //모듈 가져오기
+import crypto from "crypto-js";
 import "./App.css";
-
-// const readline = require("readline");
-
-// const rl = readline.createInterface({
-//   input: process.stdin,
-//   output: process.stdout,
-// });
 
 function App() {
   const [socket, setSocket] = useState();
   const [msgList, setMsgList] = useState([]);
-  // const [msg, setMsg] = useState("")
+  const [base64, setBase64] = useState("");
+  const [msg, setMsg] = useState("");
 
   useEffect(() => {
     const socketIo = io("http://localhost:3001", {
@@ -37,6 +32,39 @@ function App() {
     });
   }
 
+  function imgChangeHandler(event) {
+    if (event.target.files) {
+      Array.from(event.target.files).forEach((image) => {
+        encodeFileToBase64(image).then((data) => {
+          console.log(data);
+          // encrypt using DES
+          const encrypted = crypto.DES.encrypt(
+            data,
+            "xGHQkCIOr46599weIoqfxiyoBCt4pfBomFAnzuDLfTRTKCj0vZqX9SI4aSVnlKXg"
+          );
+          console.log(JSON.stringify(encrypted.ciphertext));
+
+          // decrypt using DES
+          const decrypted = crypto.DES.decrypt(
+            encrypted,
+            "xGHQkCIOr46599weIoqfxiyoBCt4pfBomFAnzuDLfTRTKCj0vZqX9SI4aSVnlKXg"
+          );
+          console.log(decrypted.toString(crypto.enc.Utf8));
+          setBase64(decrypted.toString(crypto.enc.Utf8));
+        });
+      });
+    }
+  }
+
+  const encodeFileToBase64 = (image) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(image);
+      reader.onload = (event) => resolve(event.target.result);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
   return (
     <div className="App">
       <div className="input-form">
@@ -56,6 +84,8 @@ function App() {
           ))}
         </div>
       </div>
+      <input type="file" onChange={imgChangeHandler} />
+      <img src={base64} alt="Blue Circle"></img>
     </div>
   );
 }
