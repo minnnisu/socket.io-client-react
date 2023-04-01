@@ -6,6 +6,7 @@
     "@testing-library/jest-dom": "^5.16.5",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "buffer": "^6.0.3",
     "crypto-js": "^4.1.1",
     "express": "^4.18.2",
     "http": "^0.0.1-security",
@@ -15,6 +16,8 @@
     "react-scripts": "5.0.1",
     "socket.io-client": "^4.6.1",
     "socket.io-stream": "^0.9.1",
+    "stream": "^0.0.2",
+    "util": "^0.12.5",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
