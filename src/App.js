@@ -54,6 +54,11 @@ function App() {
       // }));
     });
 
+    function decryptDES(data) {
+      const decrypted = crypto.DES.decrypt(data, secretKey);
+      return decrypted.toString(crypto.enc.Utf8);
+    }
+
     socketIo.on("receiveImageData", (data) => {
       const parsedData = JSON.parse(data);
       if (parsedData.senderSocketID === socketIo.id) {
@@ -64,7 +69,8 @@ function App() {
         imageReceiveBase64.current = "";
         return;
       }
-      imageReceiveBase64.current += parsedData.base64Data;
+      const plainText = decryptDES(parsedData.base64Data);
+      imageReceiveBase64.current += plainText;
       console.log(imageReceiveBase64.current);
       socketIo.emit(
         "moreData",
@@ -90,12 +96,15 @@ function App() {
           })
         );
       } else {
+        const cipherText = encrypteDES(
+          imageSendBase64.current[parsedData.index]
+        );
         socketIo.emit(
           "sendImageData",
           JSON.stringify({
             index: parsedData.index,
             isEnd: false,
-            base64Data: imageSendBase64.current[parsedData.index],
+            base64Data: cipherText,
             recieverSocketID: parsedData.senderSocketID,
             senderSocketID: socketIo.id,
           })
@@ -111,12 +120,13 @@ function App() {
   }, []);
 
   function sendImageData(index, recieverSocketID = null) {
+    const cipherText = encrypteDES(imageSendBase64.current[index]);
     socket.emit(
       "sendImageInit",
       JSON.stringify({
         index,
         isEnd: false,
-        base64Data: imageSendBase64.current[index],
+        base64Data: cipherText,
         recieverSocketID,
         senderSocketID: socket.id,
       })
@@ -132,17 +142,6 @@ function App() {
           imageSendBase64.current = base64Array;
           console.log(imageSendBase64.current);
           sendImageData(0);
-
-          // // encrypt using DES
-          // const cipherText = [];
-          // for (let i = 0; i < base64Array.length; i++) {
-          //   const encrypted = crypto.DES.encrypt(
-          //     base64Array[i],
-          //     secretKey
-          //   ).toString();
-          //   cipherText.push(encrypted);
-          // }
-          // console.log(cipherText);
         });
       });
     }
@@ -169,6 +168,11 @@ function App() {
     });
   }
 
+  // encrypt using DES
+  function encrypteDES(data) {
+    return crypto.DES.encrypt(data, secretKey).toString();
+  }
+
   function splitBase64ToByte(data, length) {
     let idx = 0;
     let left = data.length;
@@ -176,19 +180,18 @@ function App() {
     if (data.length < length) {
       base64Array.push(data.slice(0, Math.floor(data.length / 2)));
       base64Array.push(data.slice(Math.floor(data.length / 2) + 1));
-      return base64Array;
-    }
-
-    while (true) {
-      if (left > length) {
-        const temp = data.slice(idx, idx + length);
-        base64Array.push(temp);
-        idx += length;
-        left -= length;
-      } else {
-        const temp = data.slice(idx);
-        base64Array.push(temp);
-        break;
+    } else {
+      while (true) {
+        if (left > length) {
+          const temp = data.slice(idx, idx + length);
+          base64Array.push(temp);
+          idx += length;
+          left -= length;
+        } else {
+          const temp = data.slice(idx);
+          base64Array.push(temp);
+          break;
+        }
       }
     }
     return base64Array;
