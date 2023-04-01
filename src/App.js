@@ -3,7 +3,7 @@ import io from "socket.io-client";
 import crypto from "crypto-js";
 import "./App.css";
 import { useRef } from "react";
-import { log } from "util";
+import { Buffer } from "buffer";
 
 function App() {
   const imageReceiveBase64 = useRef("");
@@ -32,82 +32,49 @@ function App() {
       }));
     });
 
-    // receive encrypted base64 file from server
-    socketIo.on("receciveBase64", (data) => {
-      // // decrypt using DES
-      // const decrypted = crypto.DES.decrypt(data.base64Data, secretKey);
-      // console.log(decrypted.toString(crypto.enc.Utf8));
-      // setImgData((prev) => ({
-      //   ...prev,
-      //   imgBase64: decrypted.toString(crypto.enc.Utf8),
-      // }));
-      // decrypt using DES
-      // let plainText = "";
-      // for (let i = 0; i < data; i++) {
-      //   const decrypted = crypto.DES.decrypt(data, secretKey);
-      //   plainText += decrypted.toString(crypto.enc.Utf8);
-      // }
-      // console.log(plainText);
-      // setImgData((prev) => ({
-      //   ...prev,
-      //   imgBase64: plainText.toString(crypto.enc.Utf8),
-      // }));
-    });
-
-    function decryptDES(data) {
-      const decrypted = crypto.DES.decrypt(data, secretKey);
-      return decrypted.toString(crypto.enc.Utf8);
-    }
-
-    socketIo.on("receiveImageData", (data) => {
-      const parsedData = JSON.parse(data);
-      if (parsedData.senderSocketID === socketIo.id) {
+    socketIo.on("receiveImageData", (header, body) => {
+      if (header.senderSocketID === socketIo.id) {
         return;
       }
-      if (parsedData.isEnd) {
+      if (header.isEnd) {
         setImgData(imageReceiveBase64.current);
         imageReceiveBase64.current = "";
         return;
       }
-      const plainText = decryptDES(parsedData.base64Data);
+      const plainText = decryptDES(body.toString("utf-8"));
       imageReceiveBase64.current += plainText;
       console.log(imageReceiveBase64.current);
-      socketIo.emit(
-        "moreData",
-        JSON.stringify({
-          index: parsedData.index + 1,
-          recieverSocketID: parsedData.senderSocketID,
-          senderSocketID: socketIo.id,
-        })
-      );
+      socketIo.emit("moreData", {
+        index: header.index + 1,
+        recieverSocketID: header.senderSocketID,
+        senderSocketID: socketIo.id,
+      });
     });
 
     socketIo.on("requestMoreImageData", (data) => {
-      const parsedData = JSON.parse(data);
-      if (imageSendBase64.current.length === parsedData.index) {
+      if (imageSendBase64.current.length === data.index) {
         socketIo.emit(
           "sendImageData",
-          JSON.stringify({
+          {
             index: null,
             isEnd: true,
-            base64Data: null,
-            recieverSocketID: parsedData.senderSocketID,
+            recieverSocketID: data.senderSocketID,
             senderSocketID: socketIo.id,
-          })
+          },
+          Buffer.from("").toString("utf-8")
         );
       } else {
-        const cipherText = encrypteDES(
-          imageSendBase64.current[parsedData.index]
-        );
+        const cipherText = encrypteDES(imageSendBase64.current[data.index]);
+        console.log(typeof cipherText);
         socketIo.emit(
           "sendImageData",
-          JSON.stringify({
-            index: parsedData.index,
+          {
+            index: data.index,
             isEnd: false,
-            base64Data: cipherText,
-            recieverSocketID: parsedData.senderSocketID,
+            recieverSocketID: data.senderSocketID,
             senderSocketID: socketIo.id,
-          })
+          },
+          Buffer.from(cipherText).toString("utf-8")
         );
       }
     });
@@ -119,32 +86,15 @@ function App() {
     };
   }, []);
 
-  function sendImageData(index, recieverSocketID = null) {
-    const cipherText = encrypteDES(imageSendBase64.current[index]);
-    socket.emit(
-      "sendImageInit",
-      JSON.stringify({
-        index,
-        isEnd: false,
-        base64Data: cipherText,
-        recieverSocketID,
-        senderSocketID: socket.id,
-      })
-    );
-  }
-
-  function imgChangeHandler(event) {
-    if (event.target.files) {
-      Array.from(event.target.files).forEach((image) => {
-        encodeFileToBase64(image).then((data) => {
-          console.log(data);
-          const base64Array = splitBase64ToByte(data, 200 * 1024);
-          imageSendBase64.current = base64Array;
-          console.log(imageSendBase64.current);
-          sendImageData(0);
-        });
-      });
+  function arrayBufferToCipherText(buffer) {
+    var binary = "";
+    var bytes = new Uint8Array(buffer);
+    var len = bytes.byteLength;
+    for (var i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
     }
+    console.log(binary);
+    return window.btoa(binary);
   }
 
   // send text message to server
@@ -156,21 +106,46 @@ function App() {
     });
   }
 
-  // send encrypted base64 file to server
-  function sendImageFile(e) {
-    e.preventDefault();
-    console.log("이미지 전송");
-    console.log(socket.id);
-    console.log(imgData.cipherText);
-    socket.emit("sendBase64", {
-      name: userName,
-      base64Data: imgData.cipherText,
-    });
+  function sendImageData(index, recieverSocketID = null) {
+    const cipherText = encrypteDES(imageSendBase64.current[index]);
+    socket.emit(
+      "sendImageInit",
+      {
+        index,
+        isEnd: false,
+        recieverSocketID,
+        senderSocketID: socket.id,
+      },
+      Buffer.from(cipherText).toString("utf-8")
+    );
   }
 
-  // encrypt using DES
+  function onClickImageSendBtn(event) {
+    event.preventDefault();
+    sendImageData(0);
+  }
+
+  function imgChangeHandler(event) {
+    if (event.target.files) {
+      Array.from(event.target.files).forEach((image) => {
+        encodeFileToBase64(image).then((data) => {
+          console.log(data);
+          const base64Array = splitBase64ToByte(data, 200 * 1024);
+          imageSendBase64.current = base64Array;
+          console.log(imageSendBase64.current);
+        });
+      });
+    }
+  }
+
   function encrypteDES(data) {
     return crypto.DES.encrypt(data, secretKey).toString();
+  }
+
+  function decryptDES(data) {
+    console.log(data);
+    const decrypted = crypto.DES.decrypt(data, secretKey);
+    return decrypted.toString(crypto.enc.Utf8);
   }
 
   function splitBase64ToByte(data, length) {
@@ -234,7 +209,7 @@ function App() {
       </div>
       <div>
         <input type="file" onChange={imgChangeHandler} />
-        <button onClick={sendImageFile}>이미지 전송</button>
+        <button onClick={onClickImageSendBtn}>이미지 전송</button>
       </div>
       {imgData && <img src={imgData} alt="이미지" />}
     </div>
