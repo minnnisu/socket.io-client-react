@@ -33,9 +33,9 @@ function App() {
     });
 
     socketIo.on("receiveImageData", (header, body) => {
-      if (header.senderSocketID === socketIo.id) {
-        return;
-      }
+      // if (header.senderSocketID === socketIo.id) {
+      //   return;
+      // }
       if (header.isEnd) {
         setImgData(imageReceiveBase64.current);
         imageReceiveBase64.current = "";
@@ -86,24 +86,15 @@ function App() {
     };
   }, []);
 
-  function arrayBufferToCipherText(buffer) {
-    var binary = "";
-    var bytes = new Uint8Array(buffer);
-    var len = bytes.byteLength;
-    for (var i = 0; i < len; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    console.log(binary);
-    return window.btoa(binary);
-  }
-
-  // send text message to server
-  function submitMsg(e) {
+  function onClickSubmitBtn(e) {
     e.preventDefault();
     socket.emit("send message", {
       name: socket.id,
       msg: msgData.msg,
     });
+    if (imageSendBase64.current !== "") {
+      sendImageData(0);
+    }
   }
 
   function sendImageData(index, recieverSocketID = null) {
@@ -118,11 +109,6 @@ function App() {
       },
       Buffer.from(cipherText).toString("utf-8")
     );
-  }
-
-  function onClickImageSendBtn(event) {
-    event.preventDefault();
-    sendImageData(0);
   }
 
   function imgChangeHandler(event) {
@@ -194,12 +180,14 @@ function App() {
                   : "msg_conversation_item other"
               }
             >
-              <span>{msg.name}:</span> <span>{msg.msg}</span>
+              <div className="wrapper">
+                <div className="name">{msg.name}</div>
+                <div className="msg">{msg.msg}</div>
+              </div>
             </div>
           ))}
         </div>
-        <div className="msg_form">
-          <label>메시지</label>
+        <div className="msg_input_form">
           <input
             type="text"
             onChange={(e) => {
@@ -209,14 +197,13 @@ function App() {
               }));
             }}
           />
-          <button onClick={submitMsg}>전송</button>
+          <div>
+            <input type="file" onChange={imgChangeHandler} />
+          </div>
+          <button onClick={onClickSubmitBtn}>전송</button>
+          {imgData && <img src={imgData} alt="이미지" />}
         </div>
       </div>
-      <div>
-        <input type="file" onChange={imgChangeHandler} />
-        <button onClick={onClickImageSendBtn}>이미지 전송</button>
-      </div>
-      {imgData && <img src={imgData} alt="이미지" />}
     </div>
   );
 }

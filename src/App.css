@@ -1,3 +1,41 @@
+#root {
+  width: 80%;
+  height: 800px;
+  margin: calc((100vh - 800px) / 2) auto;
+  background-color: #fff;
+  box-sizing: border-box;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 1px 1px 7px rgb(158, 158, 158);
+  position: relative;
+}
+
 .msg_container {
-  display: flex;
+}
+
+.msg_conversation_container .msg_conversation_item.me {
+  text-align: right;
+  margin-bottom: 3%;
+}
+
+.msg_conversation_container .msg_conversation_item.other .msg {
+  margin-top: 5px;
+  background-color: rgb(221, 221, 221);
+  display: inline-block;
+  padding: 5px;
+  border-radius: 8px;
+}
+
+.msg_conversation_container .msg_conversation_item.me .msg {
+  margin-top: 5px;
+  display: inline-block;
+  background-color: rgb(73, 85, 219);
+  border-radius: 5px;
+  color: #fff;
+  padding: 8px;
+}
+
+.msg_input_form {
+  position: absolute;
+  bottom: 30px;
 }
