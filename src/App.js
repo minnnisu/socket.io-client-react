@@ -10,8 +10,8 @@ function App() {
   const imageSendBase64 = useRef([]);
   const [socket, setSocket] = useState();
   const [userName, setUserName] = useState("");
-  const [msgData, setMsgData] = useState({ msg: "", msgList: [] });
-  const [imgData, setImgData] = useState("");
+  const [userMsg, setUserMsg] = useState("");
+  const [msgData, setMsgData] = useState([]); // { sender:"", type: "", msg: ""}
 
   const secretKey =
     "xGHQkCIOr46599weIoqfxiyoBCt4pfBomFAnzuDLfTRTKCj0vZqX9SI4aSVnlKXg";
@@ -24,12 +24,11 @@ function App() {
     setSocket(socketIo);
 
     // receive text message from server
-    socketIo.on("receive message", (msg) => {
-      console.log(msg);
-      setMsgData((prev) => ({
-        msg: prev.msg,
-        msgList: [...prev.msgList, msg],
-      }));
+    socketIo.on("receive message", (header, body) => {
+      setMsgData((prev) => [
+        ...prev,
+        { sender: header.senderSocketID, type: "textMsg", msg: body.msg },
+      ]);
     });
 
     socketIo.on("receiveImageData", (header, body) => {
@@ -37,7 +36,14 @@ function App() {
       //   return;
       // }
       if (header.isEnd) {
-        setImgData(imageReceiveBase64.current);
+        setMsgData((prev) => [
+          ...prev,
+          {
+            sender: header.senderSocketID,
+            type: "img",
+            msg: imageReceiveBase64.current,
+          },
+        ]);
         imageReceiveBase64.current = "";
         return;
       }
@@ -63,6 +69,7 @@ function App() {
           },
           Buffer.from("").toString("utf-8")
         );
+        imageSendBase64.current = [];
       } else {
         const cipherText = encrypteDES(imageSendBase64.current[data.index]);
         console.log(typeof cipherText);
@@ -89,10 +96,10 @@ function App() {
   function onClickSubmitBtn(e) {
     e.preventDefault();
     socket.emit("send message", {
-      name: socket.id,
-      msg: msgData.msg,
+      header: { senderSocketID: socket.id },
+      body: { msg: userMsg },
     });
-    if (imageSendBase64.current !== "") {
+    if (imageSendBase64.current !== []) {
       sendImageData(0);
     }
   }
@@ -171,18 +178,27 @@ function App() {
     <div className="App">
       <div className="msg_container">
         <div className="msg_conversation_container">
-          {msgData.msgList.map((msg, index) => (
+          {msgData.map((item, index) => (
             <div
               key={index}
               className={
-                msg.name === socket.id
+                item.sender === socket.id
                   ? "msg_conversation_item me"
                   : "msg_conversation_item other"
               }
             >
               <div className="wrapper">
-                <div className="name">{msg.name}</div>
-                <div className="msg">{msg.msg}</div>
+                {item.type === "msg" ? (
+                  <>
+                    <div className="name">{item.sender}</div>
+                    <div className="msg">{item.msg}</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="name">{item.sender}</div>
+                    <img src={item.msg} />
+                  </>
+                )}
               </div>
             </div>
           ))}
@@ -191,17 +207,13 @@ function App() {
           <input
             type="text"
             onChange={(e) => {
-              setMsgData((prev) => ({
-                msg: e.target.value,
-                msgList: prev.msgList,
-              }));
+              setUserMsg(e.target.value);
             }}
           />
           <div>
             <input type="file" onChange={imgChangeHandler} />
           </div>
           <button onClick={onClickSubmitBtn}>전송</button>
-          {imgData && <img src={imgData} alt="이미지" />}
         </div>
       </div>
     </div>
