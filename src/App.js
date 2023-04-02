@@ -101,7 +101,7 @@ function App() {
   function submitMsg(e) {
     e.preventDefault();
     socket.emit("send message", {
-      name: userName,
+      name: socket.id,
       msg: msgData.msg,
     });
   }
@@ -183,28 +183,33 @@ function App() {
 
   return (
     <div className="App">
-      <div className="input-form">
-        <span>이름</span>
-        <input type="text" onChange={(e) => setUserName(e.target.value)} />{" "}
-        <span>메시지</span>
-        <input
-          type="text"
-          onChange={(e) => {
-            setMsgData((prev) => ({
-              msg: e.target.value,
-              msgList: prev.msgList,
-            }));
-          }}
-        />
-        <button onClick={submitMsg}>전송</button>
-      </div>
       <div className="msg_container">
-        <div className="my_message">
+        <div className="msg_conversation_container">
           {msgData.msgList.map((msg, index) => (
-            <div key={index}>
+            <div
+              key={index}
+              className={
+                msg.name === socket.id
+                  ? "msg_conversation_item me"
+                  : "msg_conversation_item other"
+              }
+            >
               <span>{msg.name}:</span> <span>{msg.msg}</span>
             </div>
           ))}
+        </div>
+        <div className="msg_form">
+          <label>메시지</label>
+          <input
+            type="text"
+            onChange={(e) => {
+              setMsgData((prev) => ({
+                msg: e.target.value,
+                msgList: prev.msgList,
+              }));
+            }}
+          />
+          <button onClick={submitMsg}>전송</button>
         </div>
       </div>
       <div>
