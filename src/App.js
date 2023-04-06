@@ -4,6 +4,9 @@ import crypto from "crypto-js";
 import "./App.css";
 import { useRef } from "react";
 import { Buffer } from "buffer";
+import ss from "socket.io-stream";
+import stream from "stream";
+const streamToBlob = require("stream-to-blob");
 
 function App() {
   const imageReceiveBase64 = useRef("");
@@ -12,6 +15,7 @@ function App() {
   const [userName, setUserName] = useState("");
   const [userMsg, setUserMsg] = useState("");
   const [msgData, setMsgData] = useState([]); // { sender:"", type: "", msg: ""}
+  const [img, setImg] = useState("");
 
   const secretKey =
     "xGHQkCIOr46599weIoqfxiyoBCt4pfBomFAnzuDLfTRTKCj0vZqX9SI4aSVnlKXg";
@@ -31,59 +35,11 @@ function App() {
       ]);
     });
 
-    socketIo.on("receiveImageData", (header, body) => {
-      // if (header.senderSocketID === socketIo.id) {
-      //   return;
-      // }
-      if (header.isEnd) {
-        setMsgData((prev) => [
-          ...prev,
-          {
-            sender: header.senderSocketID,
-            type: "img",
-            msg: imageReceiveBase64.current,
-          },
-        ]);
-        imageReceiveBase64.current = "";
-        return;
-      }
-      const plainText = decryptDES(body.toString("utf-8"));
-      imageReceiveBase64.current += plainText;
-      console.log(imageReceiveBase64.current);
-      socketIo.emit("moreData", {
-        index: header.index + 1,
-        recieverSocketID: header.senderSocketID,
-        senderSocketID: socketIo.id,
-      });
-    });
-
-    socketIo.on("requestMoreImageData", (data) => {
-      if (imageSendBase64.current.length === data.index) {
-        socketIo.emit(
-          "sendImageData",
-          {
-            index: null,
-            isEnd: true,
-            recieverSocketID: data.senderSocketID,
-            senderSocketID: socketIo.id,
-          },
-          Buffer.from("").toString("utf-8")
-        );
-        imageSendBase64.current = [];
-      } else {
-        const cipherText = encrypteDES(imageSendBase64.current[data.index]);
-        console.log(typeof cipherText);
-        socketIo.emit(
-          "sendImageData",
-          {
-            index: data.index,
-            isEnd: false,
-            recieverSocketID: data.senderSocketID,
-            senderSocketID: socketIo.id,
-          },
-          Buffer.from(cipherText).toString("utf-8")
-        );
-      }
+    ss(socketIo).on("receive", async (tempStream, size) => {
+      const blob = await streamToBlob(tempStream);
+      const url = window.URL.createObjectURL(blob);
+      console.log(url);
+      setImg(url);
     });
 
     return () => {
@@ -93,52 +49,48 @@ function App() {
     };
   }, []);
 
-  function onClickSubmitBtn(e) {
-    e.preventDefault();
-    socket.emit("send message", {
-      header: { senderSocketID: socket.id },
-      body: { msg: userMsg },
-    });
-    if (imageSendBase64.current !== []) {
-      sendImageData(0);
-    }
-  }
+  // function onClickSubmitBtn(e) {
+  //   e.preventDefault();
+  //   socket.emit("send message", {
+  //     header: { senderSocketID: socket.id },
+  //     body: { msg: userMsg },
+  //   });
 
-  function sendImageData(index, recieverSocketID = null) {
-    const cipherText = encrypteDES(imageSendBase64.current[index]);
-    socket.emit(
-      "sendImageInit",
-      {
-        index,
-        isEnd: false,
-        recieverSocketID,
-        senderSocketID: socket.id,
-      },
-      Buffer.from(cipherText).toString("utf-8")
-    );
-  }
+  // }
 
   function imgChangeHandler(event) {
     if (event.target.files) {
-      Array.from(event.target.files).forEach((image) => {
-        encodeFileToBase64(image).then((data) => {
-          console.log(data);
-          const base64Array = splitBase64ToByte(data, 200 * 1024);
-          imageSendBase64.current = base64Array;
-          console.log(imageSendBase64.current);
-        });
-      });
+      var file = event.target.files[0];
+      var stream = ss.createStream();
+
+      // upload a file to the server.
+      ss(socket).emit("file", stream, { size: file.size });
+      ss.createBlobReadStream(file).pipe(stream);
+
+      // Array.from(event.target.files).forEach((image) => {
+      //   encodeFileToBase64(image).then((data) => {
+      //     const base64Array = splitBase64ToByte(data, 200 * 1024);
+      //     socket.emit(
+      //       "send",
+      //       JSON.stringify({ data: encrypteDES(base64Array) })
+      // });
     }
   }
 
   function encrypteDES(data) {
-    return crypto.DES.encrypt(data, secretKey).toString();
+    const temp = [];
+    for (const item of data) {
+      temp.push(crypto.DES.encrypt(item, secretKey).toString());
+    }
+    return temp;
   }
 
   function decryptDES(data) {
-    console.log(data);
-    const decrypted = crypto.DES.decrypt(data, secretKey);
-    return decrypted.toString(crypto.enc.Utf8);
+    let temp = "";
+    for (const item of data) {
+      temp += crypto.DES.decrypt(item, secretKey).toString(crypto.enc.Utf8);
+    }
+    return temp;
   }
 
   function splitBase64ToByte(data, length) {
@@ -213,8 +165,9 @@ function App() {
           <div>
             <input type="file" onChange={imgChangeHandler} />
           </div>
-          <button onClick={onClickSubmitBtn}>전송</button>
+          <button>전송</button>
         </div>
+        <img src={img} width={500} />
       </div>
     </div>
   );
