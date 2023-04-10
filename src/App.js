@@ -1,22 +1,18 @@
 import { useEffect, useState } from "react";
 import io from "socket.io-client";
 import "./App.css";
-import { useRef } from "react";
 import ss from "socket.io-stream";
 const crypto = require("crypto");
 const streamToBlob = require("stream-to-blob");
 
 function App() {
-  const imageReceiveBase64 = useRef("");
-  const imageSendBase64 = useRef([]);
   const [socket, setSocket] = useState();
-  const [userName, setUserName] = useState("");
-  const [userMsg, setUserMsg] = useState("");
-  const [msgData, setMsgData] = useState([]); // { sender:"", type: "", msg: ""}
-  const [img, setImg] = useState("");
+  const [msgData, setMsgData] = useState([]);
+  const [imgMsgData, setImgMsgData] = useState("");
 
-  const secretKey =
-    "xGHQkCIOr46599weIoqfxiyoBCt4pfBomFAnzuDLfTRTKCj0vZqX9SI4aSVnlKXg";
+  const [msgInput, setMsgInput] = useState("");
+
+  const password = "McQfTjWnZr4u7x!A";
 
   useEffect(() => {
     const socketIo = io("http://localhost:3001", {
@@ -26,15 +22,15 @@ function App() {
     setSocket(socketIo);
 
     // receive text message from server
-    socketIo.on("receive message", (header, body) => {
+    socketIo.on("receive message", (receive) => {
       setMsgData((prev) => [
         ...prev,
-        { sender: header.senderSocketID, type: "textMsg", msg: body.msg },
+        { sender: receive.name, msg: receive.msg },
       ]);
     });
 
     ss(socketIo).on("receive", async (tempStream, size) => {
-      const password = "McQfTjWnZr4u7x!A";
+      console.log("실행");
       const KEY = Buffer.from(password, "utf8");
       const IV = Buffer.from(password, "utf8");
       var decipherStream = crypto.createDecipheriv("aes-128-cbc", KEY, IV);
@@ -42,7 +38,7 @@ function App() {
       const blob = await streamToBlob(decipher);
       const url = window.URL.createObjectURL(blob);
       console.log(url);
-      setImg(url);
+      setImgMsgData(url);
     });
 
     return () => {
@@ -52,21 +48,19 @@ function App() {
     };
   }, []);
 
-  // function onClickSubmitBtn(e) {
-  //   e.preventDefault();
-  //   socket.emit("send message", {
-  //     header: { senderSocketID: socket.id },
-  //     body: { msg: userMsg },
-  //   });
+  function msgInputChangeHandler(e) {
+    setMsgInput(e.target.value);
+  }
 
-  // }
+  function msgSubmitHandler() {
+    socket.emit("send message", { name: socket.id, msg: msgInput });
+  }
 
   function imgChangeHandler(event) {
     if (event.target.files) {
       var file = event.target.files[0];
       var stream = ss.createStream();
 
-      const password = "McQfTjWnZr4u7x!A";
       const KEY = Buffer.from(password, "utf8");
       const IV = Buffer.from(password, "utf8");
       var encrypt = crypto.createCipheriv("aes-128-cbc", KEY, IV);
@@ -90,34 +84,20 @@ function App() {
               }
             >
               <div className="wrapper">
-                {item.type === "msg" ? (
-                  <>
-                    <div className="name">{item.sender}</div>
-                    <div className="msg">{item.msg}</div>
-                  </>
-                ) : (
-                  <>
-                    <div className="name">{item.sender}</div>
-                    <img src={item.msg} />
-                  </>
-                )}
+                <div className="name">{item.sender}</div>
+                <div className="msg">{item.msg}</div>
               </div>
             </div>
           ))}
         </div>
         <div className="msg_input_form">
-          <input
-            type="text"
-            onChange={(e) => {
-              setUserMsg(e.target.value);
-            }}
-          />
-          <div>
-            <input type="file" onChange={imgChangeHandler} />
-          </div>
-          <button>전송</button>
+          <input type="text" onChange={msgInputChangeHandler} />
+          <button onClick={msgSubmitHandler}>메시지 전송</button>
         </div>
-        <img src={img} width={500} />
+        <div>
+          <input type="file" onChange={imgChangeHandler} />
+        </div>
+        <img src={imgMsgData} width={500} alt="receive_img" />
       </div>
     </div>
   );
