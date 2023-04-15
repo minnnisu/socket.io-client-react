@@ -22,18 +22,18 @@ function App() {
     setSocket(socketIo);
 
     // receive text message from server
-    socketIo.on("receive message", (receive) => {
+    socketIo.on("receiveMsg", (receive) => {
       setMsgData((prev) => [
         ...prev,
         { sender: receive.name, msg: receive.msg },
       ]);
     });
 
-    ss(socketIo).on("receive", async (tempStream, size) => {
-      console.log("실행");
+    ss(socketIo).on("receiveImg", async (tempStream, data) => {
+      console.log("receiveImg");
       const KEY = Buffer.from(password, "utf8");
       const IV = Buffer.from(password, "utf8");
-      var decipherStream = crypto.createDecipheriv("aes-128-cbc", KEY, IV);
+      const decipherStream = crypto.createDecipheriv("aes-128-cbc", KEY, IV);
       const decipher = tempStream.pipe(decipherStream);
       const blob = await streamToBlob(decipher);
       const url = window.URL.createObjectURL(blob);
@@ -53,19 +53,19 @@ function App() {
   }
 
   function msgSubmitHandler() {
-    socket.emit("send message", { name: socket.id, msg: msgInput });
+    socket.emit("sendMsg", { name: socket.id, msg: msgInput });
   }
 
   function imgChangeHandler(event) {
     if (event.target.files) {
-      var file = event.target.files[0];
-      var stream = ss.createStream();
+      const file = event.target.files[0];
+      const stream = ss.createStream();
 
       const KEY = Buffer.from(password, "utf8");
       const IV = Buffer.from(password, "utf8");
-      var encrypt = crypto.createCipheriv("aes-128-cbc", KEY, IV);
+      const encrypt = crypto.createCipheriv("aes-128-cbc", KEY, IV);
       // upload a file to the server.
-      ss(socket).emit("file", stream, { size: file.size });
+      ss(socket).emit("sendImg", stream, { size: file.size });
       ss.createBlobReadStream(file).pipe(encrypt).pipe(stream);
     }
   }
